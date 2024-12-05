@@ -112,7 +112,7 @@ async def monitor_vinted_updates():
                 size = item.get('size', 'нет сайза')
                 image_url = item.get('image_url', 'Нет изображения')
 
-                response_text = f"Товар: {title}\nЦена: {price}\n{size}\n{image_url}Ссылка: {link}"
+                response_text = f"Товар: {title}\nЦена: {price}\n{size}\n{image_url}\nСсылка: {link}"
 
                 try:
                     await bot.send_message(chat_id=USER_CHAT_ID, text=response_text)
