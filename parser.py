@@ -35,7 +35,7 @@ def init_driver():
     service = Service(chrome_driver_path)
     driver = webdriver.Chrome(service=service, options=options)
     driver.get(
-        'https://www.vinted.pl/catalog?time=1733389241&catalog_from=0&brand_ids[]=449710&brand_ids[]=60712&brand_ids[]=1043&brand_ids[]=75090&brand_ids[]=235040&brand_ids[]=6501593&brand_ids[]=7164596&brand_ids[]=161&brand_ids[]=5821136&brand_ids[]=1482986&brand_ids[]=3799&brand_ids[]=4565&brand_ids[]=13197&brand_ids[]=15457&brand_ids[]=11521&brand_ids[]=424544&brand_ids[]=5969695&brand_ids[]=379819&brand_ids[]=7386290&page=1&order=newest_first')
+        'https://www.vinted.pl/catalog?time=1733396236&catalog_from=0&brand_ids[]=449710&brand_ids[]=60712&brand_ids[]=1043&brand_ids[]=75090&brand_ids[]=235040&brand_ids[]=6501593&brand_ids[]=7164596&brand_ids[]=161&brand_ids[]=5821136&brand_ids[]=1482986&brand_ids[]=3799&brand_ids[]=4565&brand_ids[]=13197&brand_ids[]=15457&brand_ids[]=11521&brand_ids[]=424544&brand_ids[]=5969695&brand_ids[]=379819&brand_ids[]=7386290&brand_ids[]=10&brand_ids[]=3573&brand_ids[]=47829&brand_ids[]=17991&brand_ids[]=1153&brand_ids[]=123118&brand_ids[]=579801&page=1&order=newest_first')
 
     # Ожидание загрузки страницы
     time.sleep(5)
