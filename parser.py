@@ -70,13 +70,15 @@ def get_first_vinted_item():
                 link_url = link_element.get_attribute("href")
                 size_info = link_element.get_attribute("title")  # Получаем title элемента
 
-                # Получаем URL изображения
-                photo = link_element.get_attribute("style")
-                image_url = None
-                if photo:
-                    match = re.search(r'url\("(.+?)"\)', photo)
-                    if match:
-                        image_url = match.group(1)
+
+                ad_parent = ad.find_element(By.CLASS_NAME, 'web_ui__Image__ratio')
+
+# Ищем тег img внутри div
+                img_tag = ad_parent.find_element(By.CLASS_NAME, 'web_ui__Image__content')
+
+# Получаем URL изображения из атрибута src
+                image_url = img_tag.get_attribute("src")
+                
 
                 ad_id = f"{title} - {price}"
 
@@ -110,7 +112,7 @@ async def monitor_vinted_updates():
                 size = item.get('size', 'нет сайза')
                 image_url = item.get('image_url', 'Нет изображения')
 
-                response_text = f"Товар: {title}\nЦена: {price}\nСсылка: {link}\nИнформация: {size}"
+                response_text = f"Товар: {title}\nЦена: {price}\n{size}\n{image_url}Ссылка: {link}"
 
                 try:
                     await bot.send_message(chat_id=USER_CHAT_ID, text=response_text)
