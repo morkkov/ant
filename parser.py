@@ -119,6 +119,7 @@ async def start_monitoring(message: types.Message):
         with open("users.txt", "r") as file:
             existing_users = file.read().splitlines()
 
+        # Если ID пользователя нет в списке, добавляем его
         if str(user_id) not in existing_users:
             with open("users.txt", "a") as file:
                 file.write(f"{user_id}\n")
@@ -127,7 +128,6 @@ async def start_monitoring(message: types.Message):
     except Exception as e:
         await message.reply("Произошла ошибка при сохранении вашего ID. Пожалуйста, попробуйте позже.")
         print(f"Ошибка записи ID пользователя в файл: {e}")
-
 # Оаботчик команды /seturl
 @dp.message_handler(commands=['seturl'])
 async def set_url(message: types.Message):
