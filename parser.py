@@ -7,16 +7,16 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 import time
 import re
+import os
 
 # Telegram bot token
 API_TOKEN = '7759086372:AAEuRB_N-PbN_o-42WtfJT7oa9Cj_2ts3J8'  # Замените на ваш токен от BotFather
-ADMIN_USERNAME = "@jdueje"  # Никнейм администратора в Telegram
 
 # Создаем объект бота и диспетчер
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
-
+# Путь к драйверу Chrome
 chrome_driver_path = r'/usr/bin/chromedriver'
 
 # Хранение ID обработанных объявлений
@@ -25,7 +25,6 @@ user_urls = {}
 driver = None
 
 # Инициализация драйвера
-
 def init_driver():
     global driver
     options = Options()
@@ -111,14 +110,23 @@ async def start_monitoring(message: types.Message):
     global user_urls
     user_id = message.chat.id
 
+    # Проверяем, существует ли файл users.txt, если нет - создаем его
+    if not os.path.exists("users.txt"):
+        open("users.txt", "w").close()
+
     # Сохраняем ID нового пользователя в файл
     try:
-        with open("users.txt", "a") as file:
-            file.write(f"{user_id}\n")
-    except Exception as e:
-        print(f"Ошибка записи ID пользователя в файл: {e}")
+        with open("users.txt", "r") as file:
+            existing_users = file.read().splitlines()
 
-    await message.reply("Бот запущен. Отправьте команду /seturl <ссылка>, чтобы установить ссылку для мониторинга.")
+        if str(user_id) not in existing_users:
+            with open("users.txt", "a") as file:
+                file.write(f"{user_id}\n")
+
+        await message.reply("Бот запущен. Отправьте команду /seturl <ссылка>, чтобы установить ссылку для мониторинга.")
+    except Exception as e:
+        await message.reply("Произошла ошибка при сохранении вашего ID. Пожалуйста, попробуйте позже.")
+        print(f"Ошибка записи ID пользователя в файл: {e}")
 
 # Обработчик команды /seturl
 @dp.message_handler(commands=['seturl'])
@@ -141,5 +149,8 @@ async def set_url(message: types.Message):
     asyncio.create_task(monitor_vinted_updates(user_id, user_url))
 
 if __name__ == '__main__':
-    init_driver()
-    executor.start_polling(dp, skip_updates=True)
+    try:
+        init_driver()
+        executor.start_polling(dp, skip_updates=True)
+    except Exception as e:
+        print(f"Ошибка запуска бота: {e}")
