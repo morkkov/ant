@@ -128,7 +128,7 @@ async def start_monitoring(message: types.Message):
         await message.reply("Произошла ошибка при сохранении вашего ID. Пожалуйста, попробуйте позже.")
         print(f"Ошибка записи ID пользователя в файл: {e}")
 
-# Обработчик команды /seturl
+# Оаботчик команды /seturl
 @dp.message_handler(commands=['seturl'])
 async def set_url(message: types.Message):
     global user_urls
