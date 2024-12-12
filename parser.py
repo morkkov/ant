@@ -7,10 +7,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 import time
 import re
-import os
-
-import aiofiles  # Импортируем библиотеку для асинхронной работы с файлами
-
 
 # Telegram bot token
 API_TOKEN = '7759086372:AAEuRB_N-PbN_o-42WtfJT7oa9Cj_2ts3J8'  # Замените на ваш токен от BotFather
@@ -21,29 +17,44 @@ dp = Dispatcher(bot)
 
 # Путь к драйверу Chrome
 chrome_driver_path = r'/usr/bin/chromedriver'
+  # Обновите путь к драйверу на сервере
 
 # Хранение ID обработанных объявлений
 processed_ads = set()
-user_urls = {}
 driver = None
+#1
 
-# Инициализация драйвера
 def init_driver():
     global driver
     options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--headless")  # Включаем режим headless
+    options.add_argument("--no-sandbox")  # Безопасный режим для сервера
+    options.add_argument("--disable-dev-shm-usage")  # Уменьшение использования памяти
     options.binary_location = "/usr/bin/chromium-browser"
 
     service = Service(chrome_driver_path)
     driver = webdriver.Chrome(service=service, options=options)
+    driver.get(
+        'https://www.vinted.pl/catalog?time=1733396236&catalog_from=0&brand_ids[]=449710&brand_ids[]=60712&brand_ids[]=1043&brand_ids[]=75090&brand_ids[]=235040&brand_ids[]=6501593&brand_ids[]=7164596&brand_ids[]=161&brand_ids[]=5821136&brand_ids[]=1482986&brand_ids[]=3799&brand_ids[]=4565&brand_ids[]=13197&brand_ids[]=15457&brand_ids[]=11521&brand_ids[]=424544&brand_ids[]=5969695&brand_ids[]=379819&brand_ids[]=7386290&brand_ids[]=10&brand_ids[]=3573&brand_ids[]=47829&brand_ids[]=17991&brand_ids[]=1153&brand_ids[]=123118&brand_ids[]=579801&page=1&order=newest_first')
 
-# Получение новых объявлений
-def get_first_vinted_item(user_url):
+    # Ожидание загрузки страницы
+    time.sleep(5)
+
+    # Пытаемся закрыть всплывающее окно и согласиться с куки
+    try:
+        time.sleep(3)
+        # Кнопка закрытия
+        close_button = driver.find_element(By.CLASS_NAME, 'web_ui__Navigation__right')
+        close_button.click()
+        print("Кнопка закрытия нажата")
+    except Exception as e:
+        print(f"Ошибка при нажатии кнопок закрытия или принятия: {e}")
+
+
+def get_first_vinted_item():
     global driver
 
-    driver.get(user_url)
+    driver.refresh()
     time.sleep(5)
     items = []
 
@@ -57,11 +68,17 @@ def get_first_vinted_item(user_url):
                 price = ad.find_element(By.CLASS_NAME, 'web_ui__Text__underline-none').text
                 link_element = ad.find_element(By.CLASS_NAME, 'new-item-box__overlay--clickable')
                 link_url = link_element.get_attribute("href")
-                size_info = link_element.get_attribute("title")
+                size_info = link_element.get_attribute("title")  # Получаем title элемента
+
 
                 ad_parent = ad.find_element(By.CLASS_NAME, 'web_ui__Image__ratio')
+
+# Ищем тег img внутри div
                 img_tag = ad_parent.find_element(By.CLASS_NAME, 'web_ui__Image__content')
+
+# Получаем URL изображения из атрибута src
                 image_url = img_tag.get_attribute("src")
+                
 
                 ad_id = f"{title} - {price}"
 
@@ -82,10 +99,10 @@ def get_first_vinted_item(user_url):
 
     return items
 
-# Фоновый мониторинг объявлений
-async def monitor_vinted_updates(user_id, user_url):
+
+async def monitor_vinted_updates():
     while True:
-        items = await asyncio.to_thread(get_first_vinted_item, user_url)
+        items = await asyncio.to_thread(get_first_vinted_item)
 
         if items:
             for item in items:
@@ -98,7 +115,7 @@ async def monitor_vinted_updates(user_id, user_url):
                 response_text = f"Товар: {title}\nЦена: {price}\n{size}\n{image_url}\nСсылка: {link}"
 
                 try:
-                    await bot.send_message(chat_id=user_id, text=response_text)
+                    await bot.send_message(chat_id=USER_CHAT_ID, text=response_text)
                     print(f"Отправлено: {response_text}")
                 except Exception as e:
                     print(f"Ошибка при отправке сообщения: {e}")
@@ -106,58 +123,18 @@ async def monitor_vinted_updates(user_id, user_url):
                 await asyncio.sleep(1)
 
         await asyncio.sleep(600)
+#1
 
-# Обработчик команды /start
 @dp.message_handler(commands=['start'])
 async def start_monitoring(message: types.Message):
-    global user_urls
-    user_id = message.chat.id
+    global USER_CHAT_ID
+    USER_CHAT_ID = message.chat.id
 
-    # Проверяем, существует ли файл user.txt, если нет - создаем его
-    if not os.path.exists("user.txt"):
-        # Для асинхронного создания файла
-        async with aiofiles.open("user.txt", "w") as file:
-            pass  # Просто создаем файл, если он не существует
+    init_driver()
 
-    # Сохраняем ID нового пользователя в файл
-    try:
-        # Открываем файл для чтения
-        async with aiofiles.open("user.txt", "r") as file:
-            existing_users = await file.read()  # Читаем содержимое файла
-        existing_users = existing_users.splitlines()
+    await message.reply("Бот запущен и будет отправлять обновления сразу, как только появится новый товар.")
+    asyncio.create_task(monitor_vinted_updates())
 
-        # Если ID пользователя нет в списке, добавляем его
-        if str(user_id) not in existing_users:
-            async with aiofiles.open("user.txt", "a") as file:
-                await file.write(f"{user_id}\n")
-
-        await message.reply("Бот запущен. Отправьте команду /seturl <ссылка>, чтобы установить ссылку для мониторинга.")
-    except Exception as e:
-        await message.reply("Произошла ошибка при сохранении вашего ID. Пожалуйста, попробуйте позже.")
-        print(f"Ошибка записи ID пользователя в файл: {e}")
-# Оаботчик команды /seturl
-@dp.message_handler(commands=['seturl'])
-async def set_url(message: types.Message):
-    global user_urls
-
-    user_id = message.chat.id
-    args = message.text.split(maxsplit=1)
-
-    if len(args) < 2:
-        await message.reply("Пожалуйста, укажите ссылку. Пример: /seturl <ссылка>")
-        return
-
-    user_url = args[1]
-    user_urls[user_id] = user_url
-
-    await message.reply("Ссылка установлена. Бот начнет мониторинг.")
-
-    # Запускаем фоновую задачу для мониторинга
-    asyncio.create_task(monitor_vinted_updates(user_id, user_url))
 
 if __name__ == '__main__':
-    try:
-        init_driver()
-        executor.start_polling(dp, skip_updates=True)
-    except Exception as e:
-        print(f"Ошибка запуска бота: {e}")
+    executor.start_polling(dp, skip_updates=True)
