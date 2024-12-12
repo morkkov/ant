@@ -16,14 +16,16 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
 # Путь к драйверу Chrome
-chrome_driver_path = r'/usr/bin/chromedriver'
-  # Обновите путь к драйверу на сервере
+chrome_driver_path = r'/usr/bin/chromedriver'  # Обновите путь к драйверу на сервере
 
 # Хранение ID обработанных объявлений
 processed_ads = set()
-driver = None
-#1
 
+# Переменные для работы
+user_urls = {}  # Словарь для хранения ссылок для каждого пользователя
+driver = None
+
+# Функция для инициализации драйвера
 def init_driver():
     global driver
     options = Options()
@@ -34,26 +36,24 @@ def init_driver():
 
     service = Service(chrome_driver_path)
     driver = webdriver.Chrome(service=service, options=options)
-    driver.get(
-        'https://www.vinted.pl/catalog?time=1733396236&catalog_from=0&brand_ids[]=449710&brand_ids[]=60712&brand_ids[]=1043&brand_ids[]=75090&brand_ids[]=235040&brand_ids[]=6501593&brand_ids[]=7164596&brand_ids[]=161&brand_ids[]=5821136&brand_ids[]=1482986&brand_ids[]=3799&brand_ids[]=4565&brand_ids[]=13197&brand_ids[]=15457&brand_ids[]=11521&brand_ids[]=424544&brand_ids[]=5969695&brand_ids[]=379819&brand_ids[]=7386290&brand_ids[]=10&brand_ids[]=3573&brand_ids[]=47829&brand_ids[]=17991&brand_ids[]=1153&brand_ids[]=123118&brand_ids[]=579801&page=1&order=newest_first')
 
-    # Ожидание загрузки страницы
+# Функция для загрузки страницы
+def load_url(url):
+    global driver
+    driver.get(url)
     time.sleep(5)
 
-    # Пытаемся закрыть всплывающее окно и согласиться с куки
     try:
         time.sleep(3)
-        # Кнопка закрытия
         close_button = driver.find_element(By.CLASS_NAME, 'web_ui__Navigation__right')
         close_button.click()
         print("Кнопка закрытия нажата")
     except Exception as e:
         print(f"Ошибка при нажатии кнопок закрытия или принятия: {e}")
 
-
+# Функция для получения первого товара
 def get_first_vinted_item():
     global driver
-
     driver.refresh()
     time.sleep(5)
     items = []
@@ -68,17 +68,11 @@ def get_first_vinted_item():
                 price = ad.find_element(By.CLASS_NAME, 'web_ui__Text__underline-none').text
                 link_element = ad.find_element(By.CLASS_NAME, 'new-item-box__overlay--clickable')
                 link_url = link_element.get_attribute("href")
-                size_info = link_element.get_attribute("title")  # Получаем title элемента
-
+                size_info = link_element.get_attribute("title")
 
                 ad_parent = ad.find_element(By.CLASS_NAME, 'web_ui__Image__ratio')
-
-# Ищем тег img внутри div
                 img_tag = ad_parent.find_element(By.CLASS_NAME, 'web_ui__Image__content')
-
-# Получаем URL изображения из атрибута src
                 image_url = img_tag.get_attribute("src")
-                
 
                 ad_id = f"{title} - {price}"
 
@@ -99,9 +93,16 @@ def get_first_vinted_item():
 
     return items
 
-
-async def monitor_vinted_updates():
+# Асинхронная функция для мониторинга обновлений на Vinted
+async def monitor_vinted_updates(user_id):
     while True:
+        user_url = user_urls.get(user_id)
+        if not user_url:
+            await bot.send_message(user_id, "Ссылка не задана. Используйте команду /seturl <ваша_ссылка>.")
+            await asyncio.sleep(600)
+            continue
+
+        load_url(user_url)
         items = await asyncio.to_thread(get_first_vinted_item)
 
         if items:
@@ -115,7 +116,7 @@ async def monitor_vinted_updates():
                 response_text = f"Товар: {title}\nЦена: {price}\n{size}\n{image_url}\nСсылка: {link}"
 
                 try:
-                    await bot.send_message(chat_id=USER_CHAT_ID, text=response_text)
+                    await bot.send_message(chat_id=user_id, text=response_text)
                     print(f"Отправлено: {response_text}")
                 except Exception as e:
                     print(f"Ошибка при отправке сообщения: {e}")
@@ -123,18 +124,31 @@ async def monitor_vinted_updates():
                 await asyncio.sleep(1)
 
         await asyncio.sleep(600)
-#1
 
+# Обработчик команды /start
 @dp.message_handler(commands=['start'])
 async def start_monitoring(message: types.Message):
-    global USER_CHAT_ID
-    USER_CHAT_ID = message.chat.id
+    global driver
+    user_id = message.chat.id
 
-    init_driver()
+    if driver is None:
+        init_driver()
 
-    await message.reply("Бот запущен и будет отправлять обновления сразу, как только появится новый товар.")
-    asyncio.create_task(monitor_vinted_updates())
+    await message.reply("Бот запущен. Используйте команду /seturl <ваша_ссылка>, чтобы задать ссылку для мониторинга.")
+    asyncio.create_task(monitor_vinted_updates(user_id))
 
+# Обработчик команды /seturl
+@dp.message_handler(commands=['seturl'])
+async def set_url(message: types.Message):
+    user_id = message.chat.id
+    url = message.get_args()
+
+    if not url:
+        await message.reply("Пожалуйста, укажите ссылку. Пример: /seturl <ваша_ссылка>")
+        return
+
+    user_urls[user_id] = url
+    await message.reply(f"Ссылка установлена: {url}")
 
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
