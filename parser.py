@@ -9,6 +9,9 @@ import time
 import re
 import os
 
+import aiofiles  # Импортируем библиотеку для асинхронной работы с файлами
+
+
 # Telegram bot token
 API_TOKEN = '7759086372:AAEuRB_N-PbN_o-42WtfJT7oa9Cj_2ts3J8'  # Замените на ваш токен от BotFather
 
@@ -110,19 +113,23 @@ async def start_monitoring(message: types.Message):
     global user_urls
     user_id = message.chat.id
 
-    # Проверяем, существует ли файл users.txt, если нет - создаем его
-    if not os.path.exists("users.txt"):
-        open("users.txt", "w").close()
+    # Проверяем, существует ли файл user.txt, если нет - создаем его
+    if not os.path.exists("user.txt"):
+        # Для асинхронного создания файла
+        async with aiofiles.open("user.txt", "w") as file:
+            pass  # Просто создаем файл, если он не существует
 
     # Сохраняем ID нового пользователя в файл
     try:
-        with open("users.txt", "r") as file:
-            existing_users = file.read().splitlines()
+        # Открываем файл для чтения
+        async with aiofiles.open("user.txt", "r") as file:
+            existing_users = await file.read()  # Читаем содержимое файла
+        existing_users = existing_users.splitlines()
 
         # Если ID пользователя нет в списке, добавляем его
         if str(user_id) not in existing_users:
-            with open("users.txt", "a") as file:
-                file.write(f"{user_id}\n")
+            async with aiofiles.open("user.txt", "a") as file:
+                await file.write(f"{user_id}\n")
 
         await message.reply("Бот запущен. Отправьте команду /seturl <ссылка>, чтобы установить ссылку для мониторинга.")
     except Exception as e:
