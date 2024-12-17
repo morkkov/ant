@@ -1,65 +1,68 @@
 import asyncio
-import logging
-import os
-import time
-from aiogram import Bot, Dispatcher, executor, types
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("bot.log", encoding="utf-8")
-    ]
-)
+import time
+import re
 
 # Telegram bot token
-API_TOKEN = 'Ваш_токен_здесь'  # Замените на ваш токен
+API_TOKEN = '7759086372:AAEuRB_N-PbN_o-42WtfJT7oa9Cj_2ts3J8'  # Замените на ваш токен от BotFather
 
 # Создаем объект бота и диспетчер
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
 # Путь к драйверу Chrome
-CHROME_DRIVER_PATH = r'/полный/путь/к/chromedriver'
+chrome_driver_path = r'/usr/bin/chromedriver'  # Обновите путь к драйверу на сервере
 
 # Хранение ID обработанных объявлений
 processed_ads = set()
-user_urls = {}
 
-# Инициализация драйвера
+# Переменные для работы
+user_urls = {}  # Словарь для хранения ссылок для каждого пользователя
+driver = None
+
+# Функция для инициализации драйвера
 def init_driver():
+    global driver
+    options = Options()
+    options.add_argument("--headless")  # Включаем режим headless
+    options.add_argument("--no-sandbox")  # Безопасный режим для сервера
+    options.add_argument("--disable-dev-shm-usage")  # Уменьшение использования памяти
+    options.binary_location = "/usr/bin/chromium-browser"
+
+    service = Service(chrome_driver_path)
+    driver = webdriver.Chrome(service=service, options=options)
+
+# Функция для загрузки страницы
+def load_url(url):
+    global driver
+    driver.get(url)
+    time.sleep(5)
+
     try:
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.binary_location = "/usr/bin/chromium-browser"  # Укажите путь к браузеру Chrome
-
-        service = Service(CHROME_DRIVER_PATH)
-        driver = webdriver.Chrome(service=service, options=options)
-        logging.info("Драйвер успешно инициализирован.")
-        return driver
+        time.sleep(3)
+        close_button = driver.find_element(By.CLASS_NAME, 'web_ui__Navigation__right')
+        close_button.click()
+        print("Кнопка закрытия нажата")
     except Exception as e:
-        logging.critical(f"Ошибка при инициализации драйвера: {e}")
-        raise
+        print(f"Ошибка при нажатии кнопок закрытия или принятия: {e}")
 
-# Получение новых объявлений
-def get_first_vinted_item(driver, user_url):
-    logging.info(f"Начало обработки URL: {user_url}")
-    driver.get(user_url)
+# Функция для получения первого товара
+def get_first_vinted_item():
+    global driver
+    driver.refresh()
     time.sleep(5)
     items = []
 
     try:
         ads = driver.find_elements(By.CLASS_NAME, 'feed-grid__item-content')
+
         if ads:
-            ad = ads[0]  # Обрабатываем только первое объявление
+            ad = ads[0]
             try:
                 title = ad.find_element(By.CLASS_NAME, 'web_ui__Text__truncated').text
                 price = ad.find_element(By.CLASS_NAME, 'web_ui__Text__underline-none').text
@@ -82,36 +85,41 @@ def get_first_vinted_item(driver, user_url):
                         "image_url": image_url
                     })
                     processed_ads.add(ad_id)
-                    logging.info(f"Новое объявление: {title}, {price}")
-                else:
-                    logging.info("Объявление уже обработано.")
+
             except Exception as e:
-                logging.error(f"Ошибка при обработке объявления: {e}")
+                print(f"Ошибка при обработке первого объявления: {e}")
     except Exception as e:
-        logging.error(f"Ошибка при получении объявлений: {e}")
+        print(f"Ошибка при получении объявлений: {e}")
 
     return items
 
-# Фоновый мониторинг объявлений
-async def monitor_vinted_updates(user_id, user_url, driver):
+# Асинхронная функция для мониторинга обновлений на Vinted
+async def monitor_vinted_updates(user_id):
     while True:
-        items = await asyncio.to_thread(get_first_vinted_item, driver, user_url)
+        user_url = user_urls.get(user_id)
+        if not user_url:
+            await bot.send_message(user_id, "Ссылка не задана. Используйте команду /seturl <ваша_ссылка>.")
+            await asyncio.sleep(600)
+            continue
+
+        load_url(user_url)
+        items = await asyncio.to_thread(get_first_vinted_item)
 
         if items:
             for item in items:
                 title = item.get("title", "Без названия")
                 price = item.get("price", "Цена не указана")
                 link = item.get("url", "Нет ссылки")
-                size = item.get('size', 'Нет размера')
+                size = item.get('size', 'нет сайза')
                 image_url = item.get('image_url', 'Нет изображения')
 
-                response_text = f"Товар: {title}\nЦена: {price}\nРазмер: {size}\nИзображение: {image_url}\nСсылка: {link}"
+                response_text = f"Товар: {title}\nЦена: {price}\n{size}\n{image_url}\nСсылка: {link}"
 
                 try:
                     await bot.send_message(chat_id=user_id, text=response_text)
-                    logging.info(f"Сообщение отправлено пользователю {user_id}: {response_text}")
+                    print(f"Отправлено: {response_text}")
                 except Exception as e:
-                    logging.error(f"Ошибка при отправке сообщения пользователю {user_id}: {e}")
+                    print(f"Ошибка при отправке сообщения: {e}")
 
                 await asyncio.sleep(1)
 
@@ -120,49 +128,27 @@ async def monitor_vinted_updates(user_id, user_url, driver):
 # Обработчик команды /start
 @dp.message_handler(commands=['start'])
 async def start_monitoring(message: types.Message):
+    global driver
     user_id = message.chat.id
 
-    if not os.path.exists("users.txt"):
-        open("users.txt", "w").close()
+    if driver is None:
+        init_driver()
 
-    try:
-        with open("users.txt", "r") as file:
-            existing_users = file.read().splitlines()
-
-        if str(user_id) not in existing_users:
-            with open("users.txt", "a") as file:
-                file.write(f"{user_id}\n")
-
-        await message.reply("Бот запущен. Отправьте команду /seturl <ссылка>, чтобы установить ссылку для мониторинга.")
-        logging.info(f"Пользователь {user_id} добавлен в users.txt.")
-    except Exception as e:
-        await message.reply("Произошла ошибка при сохранении вашего ID. Пожалуйста, попробуйте позже.")
-        logging.error(f"Ошибка записи ID пользователя {user_id} в файл: {e}")
+    await message.reply("Бот запущен. Используйте команду /seturl <ваша_ссылка>, чтобы задать ссылку для мониторинга.")
+    asyncio.create_task(monitor_vinted_updates(user_id))
 
 # Обработчик команды /seturl
 @dp.message_handler(commands=['seturl'])
 async def set_url(message: types.Message):
-    global user_urls
-
     user_id = message.chat.id
-    args = message.text.split(maxsplit=1)
+    url = message.get_args()
 
-    if len(args) < 2:
-        await message.reply("Пожалуйста, укажите ссылку. Пример: /seturl <ссылка>")
+    if not url:
+        await message.reply("Пожалуйста, укажите ссылку. Пример: /seturl <ваша_ссылка>")
         return
 
-    user_url = args[1]
-    user_urls[user_id] = user_url
-
-    await message.reply("Ссылка установлена. Бот начнет мониторинг.")
-
-    # Запускаем фоновую задачу для мониторинга
-    driver = init_driver()
-    asyncio.create_task(monitor_vinted_updates(user_id, user_url, driver))
+    user_urls[user_id] = url
+    await message.reply(f"Ссылка установлена: {url}")
 
 if __name__ == '__main__':
-    try:
-        logging.info("Запуск бота...")
-        executor.start_polling(dp, skip_updates=True)
-    except Exception as e:
-        logging.critical(f"Критическая ошибка запуска бота: {e}")
+    executor.start_polling(dp, skip_updates=True)
