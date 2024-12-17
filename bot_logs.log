@@ -1,0 +1,4 @@
+2024-12-17 15:08:47,998 - ERROR - Ошибка при инициализации драйвера: Message: Unable to obtain driver for chrome; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors/driver_location
+
+2024-12-17 15:08:47,999 - CRITICAL - Критическая ошибка запуска бота: Message: Unable to obtain driver for chrome; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors/driver_location
+
